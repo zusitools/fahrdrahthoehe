@@ -24,7 +24,7 @@ std::unordered_map<int, float> hoehe_by_element;
 
 std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-Subsets
 
-#define DUMP
+std::ofstream dump("debug.ls3");
 
 bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
@@ -79,9 +79,8 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
 
               //std::cout << elementNr << " von " << glm::to_string(vertices.first->p) << " nach " << glm::to_string(vertices.second->p) << " ri " << glm::to_string(richtungsvektor) << "\n faktor " << faktor << " laenge " << laenge << "\n";
               //std::cout << "  " << glm::to_string(v1) << " " << glm::to_string(v2) << " " << glm::to_string(v3) << "\n\n";
-#ifdef DUMP
-              std::cout << "<Ankerpunkt><p X='" << schnittpunkt.x << "' Y='" << schnittpunkt.y << "' Z='" << schnittpunkt.z << "'/></Ankerpunkt>\n";
-#endif
+
+              dump << "<Ankerpunkt><p X='" << schnittpunkt.x << "' Y='" << schnittpunkt.y << "' Z='" << schnittpunkt.z << "'/></Ankerpunkt>\n";
 
               // TODO: anhand von quad.up Hoehe herausfinden
               // oder anhand baryzentrischer Koordinaten?
@@ -122,13 +121,12 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  dump << "<Zusi><Landschaft>";
+
   // Fuer jedes Streckenelement, das elektrifiziert ist, bestimme Schnittbereich.
   // Dieser ist ein Viereck (= 2 Dreiecke), dessen Normalenvektor der Richtungsvektor des Streckenelements ist.
   // Seine Breite ist die Breite des Stromabnehmer-Arbeitsbereiches.
   // Seine Hoehe ist die maximale Stromabnehmerhoehe.
-#ifdef DUMP
-  std::cout << "<Zusi><Landschaft>";
-#endif
   for (const auto& element : st3->Strecke->children_StrElement) {
     if (element->Volt == 0) {
       continue;
@@ -148,8 +146,7 @@ int main(int argc, char** argv) {
     Vec3 v3 = v1 + max_sa_hoehe * up;
     Vec3 v4 = v2 + max_sa_hoehe * up;
 
-#ifdef DUMP
-    std::cout << "<SubSet>" <<
+    dump << "<SubSet>" <<
       "<Vertex><p X='" << v1[0] << "' Y='" << v1[1] << "' Z='" << v1[2] << "'/></Vertex>" <<
       "<Vertex><p X='" << v2[0] << "' Y='" << v2[1] << "' Z='" << v2[2] << "'/></Vertex>" <<
       "<Vertex><p X='" << v3[0] << "' Y='" << v3[1] << "' Z='" << v3[2] << "'/></Vertex>" <<
@@ -157,7 +154,6 @@ int main(int argc, char** argv) {
       "<Face i='0;1;2'/><Face i='3;2;1'/>" <<
       "<Face i='2;1;0'/><Face i='1;2;3'/>" <<
       "</SubSet>\n";
-#endif
 
     quad_by_element.emplace(std::make_pair(element->Nr, Quad {
           { v1, v2, v3, v4 },
@@ -173,8 +169,6 @@ int main(int argc, char** argv) {
 
   // ¡Daten rausschreiben!
 
-#ifdef DUMP
-  std::cout << "</Landschaft></Zusi>";
-#endif
+  dump << "</Landschaft></Zusi>";
   
 }
