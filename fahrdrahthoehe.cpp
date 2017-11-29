@@ -3,6 +3,7 @@
 #include "zusi_parser/utils.hpp"
 
 #include <glm/glm.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/intersect.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -25,7 +26,7 @@ std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-S
 
 #define DUMP
 
-bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat3& transform) {
+bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
   const auto& pfad = zusixml::zusiPfadZuOsPfad(dateiname, rel);
   if (kein_fahrdraht.find(pfad) != std::end(kein_fahrdraht)) {
@@ -49,6 +50,10 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
     }
 
     hat_fahrdraht = true;
+
+    for (auto& vertex : subset->children_Vertex) {
+      vertex->p = glm::vec3(transform * glm::vec4(vertex->p.x, vertex->p.y, vertex->p.z, 1));
+    }
 
     for (const auto& face : subset->children_Face) {
       // Fuer jede Dreiecksseite berechne Strecke zwischen Vertices
@@ -82,7 +87,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
               // oder anhand baryzentrischer Koordinaten?
          
               // -> Aktualisiere Fahrdrahthoehe, wenn niedriger als bisheriger Wert
-              // TODO: Fahrdrahtdurchmesser beruecksichtigen
+              // TODO: Fahrdrahtdurchmesser beruecksichtigen -- im Zusi-Forum nachfragen, was da gemacht werden soll?
             }
           }
         }
@@ -91,8 +96,11 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
   }
 
   for (const auto& verknuepfte : ls3->Landschaft->children_Verknuepfte) {
-    // TODO: Transformationsmatrix berechnen
-    hat_fahrdraht = liesLs3(verknuepfte->Datei.Dateiname, pfad, transform) || hat_fahrdraht; // Reihenfolge!
+    glm::mat4 rot_verkn = glm::eulerAngleXYZ(verknuepfte->phi.x, verknuepfte->phi.y, verknuepfte->phi.z);
+    glm::mat4 transl_verkn = glm::translate(glm::mat4(), glm::vec3(verknuepfte->p.x, verknuepfte->p.y, verknuepfte->p.z));
+    glm::mat4 transform_verkn = transl_verkn * rot_verkn * transform;
+
+    hat_fahrdraht = liesLs3(verknuepfte->Datei.Dateiname, pfad, transform_verkn) || hat_fahrdraht; // Reihenfolge!
   }
 
   if (!hat_fahrdraht) {
@@ -160,7 +168,7 @@ int main(int argc, char** argv) {
 
   // Lies Landschaftsdatei ein (rekursiv)
   std::string rel;
-  glm::mat3 transform;
+  glm::mat4 transform;
   liesLs3(st3->Strecke->Datei.Dateiname, rel, transform);
 
   // ¡Daten rausschreiben!
