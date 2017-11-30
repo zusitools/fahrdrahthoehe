@@ -5,26 +5,30 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/intersect.hpp>
+#include <glm/gtx/projection.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/string_cast.hpp>
 
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
 struct Quad {
   std::array<Vec3, 4> v;
-  Vec3 up;
+  Vec3 up; // normalized
+  Vec3::value_type d; // base plane of the quad: ax+by+cz+d=0, where up == (a, b, c) is a normal vector of the plane
 };
 
 std::unordered_map<int, Quad> quad_by_element;
-std::unordered_map<int, float> hoehe_by_element;
+std::map<int, Vec3::value_type> hoehe_by_element;
 
 std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-Subsets
 
 std::ofstream dump("debug.ls3");
+// std::ofstream hoehen("hoehen.txt");
 
 bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
@@ -67,7 +71,8 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
 
         // Fuer jedes Streckenelement berechne Schnittpunkt der Strecke mit dessen Ebene
         for (const auto& [ elementNr, quad ] : quad_by_element) {
-          for (const auto& [ v1, v2, v3 ] : { std::forward_as_tuple(quad.v[0], quad.v[1], quad.v[2]), std::forward_as_tuple(quad.v[1], quad.v[2], quad.v[3]) }) {
+          // quad.v = { unten rechts, unten links, oben rechts, oben links }
+          for (const auto& [ v1, v2, v3 ] : { std::forward_as_tuple(quad.v[0], quad.v[2], quad.v[1]), std::forward_as_tuple(quad.v[1], quad.v[3], quad.v[2]) }) {
             Vec3 pos_bary;
             bool intersect = glm::intersectLineTriangle(vertices.first->p, richtungsvektor, v1, v2, v3, pos_bary);
             // intersectRayTriangle: Z-Koordinate von pos_bary ist Faktor fuer Richtungsvektor
@@ -76,17 +81,10 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
             if (intersect && faktor >= -0.001 && faktor <= 1.001) {
 
               Vec3 schnittpunkt = vertices.first->p + faktor * richtungsvektor;
-
-              //std::cout << elementNr << " von " << glm::to_string(vertices.first->p) << " nach " << glm::to_string(vertices.second->p) << " ri " << glm::to_string(richtungsvektor) << "\n faktor " << faktor << " laenge " << laenge << "\n";
-              //std::cout << "  " << glm::to_string(v1) << " " << glm::to_string(v2) << " " << glm::to_string(v3) << "\n\n";
-
               dump << "<Ankerpunkt><p X='" << schnittpunkt.x << "' Y='" << schnittpunkt.y << "' Z='" << schnittpunkt.z << "'/></Ankerpunkt>\n";
 
-              // TODO: anhand von quad.up Hoehe herausfinden
-              // oder anhand baryzentrischer Koordinaten?
-         
-              // -> Aktualisiere Fahrdrahthoehe, wenn niedriger als bisheriger Wert
-              // TODO: Fahrdrahtdurchmesser beruecksichtigen -- im Zusi-Forum nachfragen, was da gemacht werden soll?
+              Vec3::value_type dist = glm::dot(quad.up, schnittpunkt) + quad.d;
+              hoehe_by_element[elementNr] = std::min(hoehe_by_element[elementNr], dist);
             }
           }
         }
@@ -133,7 +131,7 @@ int main(int argc, char** argv) {
     }
 
     constexpr Vec3::value_type arbeitsbreite_sa = /* +/- */ 0.8; // pro Richtung
-    constexpr Vec3::value_type max_sa_hoehe = 6.0;
+    constexpr Vec3::value_type max_sa_hoehe = 7.0; // max. 6.5m + Puffer
 
     Vec3 normalenvektor = element->b - element->g;
     Vec3 ortsvektor = element->g + 0.5 * normalenvektor;
@@ -157,18 +155,36 @@ int main(int argc, char** argv) {
 
     quad_by_element.emplace(std::make_pair(element->Nr, Quad {
           { v1, v2, v3, v4 },
-          up
+          up,
+          -glm::dot(up, ortsvektor)
     }));
-    hoehe_by_element.emplace(std::make_pair(element->Nr, std::numeric_limits<float>::infinity()));
+    hoehe_by_element.emplace(std::make_pair(element->Nr, std::numeric_limits<Vec3::value_type>::infinity()));
   }
 
   // Lies Landschaftsdatei ein (rekursiv)
   std::string rel;
   glm::mat4 transform;
   liesLs3(st3->Strecke->Datei.Dateiname, rel, transform);
+  dump << "</Landschaft></Zusi>";
+
+  // Bestimme Hoehen
+  for (const auto& element : st3->Strecke->children_StrElement) {
+    auto it = hoehe_by_element.find(element->Nr);
+    if (it == std::end(hoehe_by_element)) {
+      continue;
+    }
+    if (it->second == std::numeric_limits<Vec3::value_type>::infinity()) {
+      std::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << it->first << " bestimmt\n";
+    }
+
+    element->Drahthoehe = it->second;
+    element->Drahthoehe_str = std::to_string(element->Drahthoehe);
+  }
 
   // ¡Daten rausschreiben!
+  for (const auto& [ elemNr, hoehe ] : hoehe_by_element) {
+    std::cout << elemNr << " " << hoehe << "\n";
+  }
 
-  dump << "</Landschaft></Zusi>";
-  
+  // st3->dump(std::cout);
 }
