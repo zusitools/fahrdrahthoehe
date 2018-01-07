@@ -12,10 +12,13 @@
 #include <rapidxml-1.13/rapidxml.hpp>
 #include <rapidxml-1.13/rapidxml_print.hpp>
 
+#include <boost/nowide/args.hpp>
+#include <boost/nowide/iostream.hpp>
+#include <boost/nowide/fstream.hpp>
+
 #include <algorithm>
 // #include <charconv>
 #include <cstdlib>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <unordered_map>
@@ -36,8 +39,8 @@ std::map<int, Vec3::value_type> hoehe_by_element;
 
 std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-Subsets
 
-std::ofstream dump("debug.ls3");
-// std::ofstream hoehen("hoehen.txt");
+boost::nowide::ofstream dump("debug.ls3");
+// boost::nowide::ofstream hoehen("hoehen.txt");
 
 bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
@@ -65,7 +68,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
 
 #ifndef READ_LSB
     if (subset->MeshI != 0) {
-      std::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
+      boost::nowide::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
     }
 #endif
 
@@ -169,13 +172,15 @@ void schreibeSt3(const std::string_view dateiname) {
   std::string out_string;
   rapidxml::print(std::back_inserter(out_string), doc, rapidxml::print_no_indenting);
 
-  std::ofstream o(std::string(dateiname) + ".new.st3", std::ios::binary);
+  boost::nowide::ofstream o(std::string(dateiname) + ".new.st3", std::ios::binary);
   o << out_string;
 }
 
 int main(int argc, char** argv) {
+  [[maybe_unused]] boost::nowide::args a(argc, argv);
+
   if (argc != 2) {
-    std::cerr << "Usage: ./fahrdrahthoehe [st3 file]\n";
+    boost::nowide::cerr << "Usage: ./fahrdrahthoehe [st3 file]\n";
     return 1;
   }
 
@@ -240,9 +245,9 @@ int main(int argc, char** argv) {
       continue;
     }
     if (it->second == std::numeric_limits<Vec3::value_type>::infinity()) {
-      std::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << it->first << " bestimmt\n";
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << it->first << " bestimmt\n";
     } else {
-      // std::cout << it->first << " " << it->second << "\n";
+      // boost::nowide::cout << it->first << " " << it->second << "\n";
     }
   }
 
