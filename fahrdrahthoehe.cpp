@@ -9,6 +9,11 @@
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#include <rapidxml-1.13/rapidxml.hpp>
+#include <rapidxml-1.13/rapidxml_print.hpp>
+
+#include <algorithm>
+// #include <charconv>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -47,7 +52,9 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
   }
 
 #if READ_LSB
-  readLsb(ls3->Landschaft.get(), dateiname);
+  if (std::any_of(std::begin(ls3->Landschaft->children_SubSet), std::end(ls3->Landschaft->children_SubSet), [](const auto& s) { return s->TypLs3 == 14; })) {
+    readLsb(ls3->Landschaft.get(), pfad);
+  }
 #endif
 
   // Fuer jedes Subset mit LS3-Typ "Fahrleitung": iteriere ueber Dreiecke
@@ -65,7 +72,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
     hat_fahrdraht = true;
 
     for (auto& vertex : subset->children_Vertex) {
-      vertex->p = glm::vec3(transform * glm::vec4(vertex->p.x, vertex->p.y, vertex->p.z, 1));
+      vertex.p = glm::vec3(transform * glm::vec4(vertex.p.x, vertex.p.y, vertex.p.z, 1));
     }
 
     for (const auto& face : subset->children_Face) {
@@ -73,9 +80,9 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
       for (const auto& vertices : {
           // TODO: Vertices und Faces im Parser inlinen
           // TODO: Nur annaehernd horizontale Faces betrachten
-          std::make_pair(subset->children_Vertex[face->i[0]].get(), subset->children_Vertex[face->i[1]].get()),
-          std::make_pair(subset->children_Vertex[face->i[1]].get(), subset->children_Vertex[face->i[2]].get()),
-          std::make_pair(subset->children_Vertex[face->i[2]].get(), subset->children_Vertex[face->i[0]].get()) }) {
+          std::make_pair(&subset->children_Vertex[face.i[0]], &subset->children_Vertex[face.i[1]]),
+          std::make_pair(&subset->children_Vertex[face.i[1]], &subset->children_Vertex[face.i[2]]),
+          std::make_pair(&subset->children_Vertex[face.i[2]], &subset->children_Vertex[face.i[0]]) }) {
         Vec3 richtungsvektor = vertices.second->p - vertices.first->p;
 
         // Fuer jedes Streckenelement berechne Schnittpunkt der Strecke mit dessen Ebene
@@ -114,6 +121,56 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
   }
 
   return hat_fahrdraht;
+}
+
+void schreibeSt3(const std::string_view dateiname) {
+  rapidxml::xml_document<> doc;
+  zusixml::FileReader reader(dateiname);
+  doc.parse<rapidxml::parse_non_destructive>(const_cast<char*>(reader.data()));
+
+  rapidxml::xml_node<>* zusi_node = doc.first_node("Zusi");
+  rapidxml::xml_node<>* strecke_node = zusi_node->first_node("Strecke");
+  for (auto* str_element_node = strecke_node->first_node("StrElement"); str_element_node; str_element_node = str_element_node->next_sibling("StrElement")) {
+    rapidxml::xml_attribute<>* nr_attrib = str_element_node->first_attribute("Nr");
+    if (!nr_attrib) {
+      continue;
+    }
+
+#if 0 // don't have <charconv> yet
+    int nr;
+    if (!std::from_chars(nr_attrib->value(), nr_attrib->value() + nr_attrib->value_size(), nr)) {
+      continue;
+    }
+#else
+    const std::string s { nr_attrib->value(), nr_attrib->value_size() };
+    int nr = atoi(s.c_str());
+#endif
+
+    auto it = hoehe_by_element.find(nr);
+    if (it == std::end(hoehe_by_element)) {
+      continue;
+    }
+
+    if (it->second == std::numeric_limits<Vec3::value_type>::infinity()) {
+      continue;
+    }
+
+    auto val_as_string = std::to_string(it->second);
+    auto* newval = doc.allocate_string(val_as_string.c_str());
+
+    rapidxml::xml_attribute<>* drahthoehe_attrib = str_element_node->first_attribute("Drahthoehe");
+    if (drahthoehe_attrib) {
+      drahthoehe_attrib->value(newval);
+    } else {
+      str_element_node->append_attribute(doc.allocate_attribute("Drahthoehe", newval));
+    }
+  }
+
+  std::string out_string;
+  rapidxml::print(std::back_inserter(out_string), doc, rapidxml::print_no_indenting);
+
+  std::ofstream o(std::string(dateiname) + ".new.st3", std::ios::binary);
+  o << out_string;
 }
 
 int main(int argc, char** argv) {
@@ -184,16 +241,10 @@ int main(int argc, char** argv) {
     }
     if (it->second == std::numeric_limits<Vec3::value_type>::infinity()) {
       std::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << it->first << " bestimmt\n";
+    } else {
+      // std::cout << it->first << " " << it->second << "\n";
     }
-
-    element->Drahthoehe = it->second;
-    element->Drahthoehe_str = std::to_string(element->Drahthoehe);
   }
 
-  // ¡Daten rausschreiben!
-  for (const auto& [ elemNr, hoehe ] : hoehe_by_element) {
-    std::cout << elemNr << " " << hoehe << "\n";
-  }
-
-  // st3->dump(std::cout);
+  schreibeSt3(argv[1]);
 }

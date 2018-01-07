@@ -9,5 +9,5 @@ add_executable(fahrdrahthoehe fahrdrahthoehe.cpp)
 target_link_libraries(fahrdrahthoehe PRIVATE zusi_parser)
 
 find_package(Boost COMPONENTS filesystem graph program_options REQUIRED)
-target_include_directories(fahrdrahthoehe PRIVATE ${Boost_INCLUDE_DIRS})
+target_include_directories(fahrdrahthoehe PRIVATE ${Boost_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR})
 target_link_libraries(fahrdrahthoehe PRIVATE ${Boost_LIBRARIES})
