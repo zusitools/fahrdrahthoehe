@@ -16,6 +16,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#if READ_LSB
+#include "lsb.hpp"
+#endif
+
 struct Quad {
   std::array<Vec3, 4> v;
   Vec3 up; // normalized
@@ -42,15 +46,21 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
     return false;
   }
 
+#if READ_LSB
+  readLsb(ls3->Landschaft.get(), dateiname);
+#endif
+
   // Fuer jedes Subset mit LS3-Typ "Fahrleitung": iteriere ueber Dreiecke
   for (const auto& subset : ls3->Landschaft->children_SubSet) {
     if (subset->TypLs3 != 14) {
       continue;
     }
 
+#ifndef READ_LSB
     if (subset->MeshI != 0) {
       std::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
     }
+#endif
 
     hat_fahrdraht = true;
 
@@ -133,7 +143,7 @@ int main(int argc, char** argv) {
     constexpr Vec3::value_type max_sa_hoehe = 7.0; // max. 6.5m + Puffer
 
     Vec3 normalenvektor = element->b - element->g;
-    Vec3 ortsvektor = element->g + 0.5 * normalenvektor;
+    Vec3 ortsvektor = element->g + Vec3::value_type(0.5) * normalenvektor;
 
     Vec3 up = glm::rotate(Vec3(0, 0, 1), static_cast<Vec3::value_type>(element->Ueberh), normalenvektor);
 
