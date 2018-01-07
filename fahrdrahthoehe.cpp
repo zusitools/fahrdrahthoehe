@@ -49,8 +49,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
     }
 
     if (subset->MeshI != 0) {
-      std::cerr << "Fehler: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).";
-      exit(1);
+      std::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
     }
 
     hat_fahrdraht = true;
