@@ -225,6 +225,62 @@ void schreibeSt3(const std::string_view dateiname) {
   o << out_string;
 }
 
+std::vector<std::pair<int, int>> segmentiere(std::unordered_set<int> elemente, const Strecke& strecke) {
+  std::function<int(int, bool)> findeWeitestenNachfolger = [&strecke, &elemente, &findeWeitestenNachfolger](int elementNr, bool norm) -> int {
+    if (elementNr < 0 || static_cast<std::size_t>(elementNr) >= strecke.children_StrElement.size()) {
+      return elementNr;
+    }
+
+    const auto& strElement = strecke.children_StrElement.at(elementNr);
+    if (!strElement) {
+      return elementNr;
+    }
+
+    // TODO: Annahme: Wenn der erste Nachfolger ein NachXXXModul ist, folgen danach keine NachXXX-Elemente
+    const auto& nachfolger = norm ? strElement->children_NachNorm : strElement->children_NachGegen;
+    if (nachfolger.size() == 0) {
+      return elementNr;
+    }
+
+    int nachfolgerNr = nachfolger.front().Nr;
+
+    auto it = elemente.find(nachfolgerNr);
+    if (it == std::end(elemente)) {
+      return elementNr;
+    }
+
+    if (nachfolgerNr < 0 || static_cast<std::size_t>(nachfolgerNr) >= strecke.children_StrElement.size()) {
+      return elementNr;
+    }
+
+    bool nachfolgerNorm = ((strElement->Anschluss >> (norm ? 0 : 8)) & 1) == 0;
+    const auto& nachfolgerElement = strecke.children_StrElement.at(nachfolgerNr);
+    if (!nachfolgerElement) {
+      return elementNr;
+    }
+
+    const auto& nachfolgerVorgaenger = nachfolgerNorm ? nachfolgerElement->children_NachGegen : nachfolgerElement->children_NachNorm;
+    if (nachfolgerVorgaenger.size() == 0 || nachfolgerVorgaenger.front().Nr != elementNr) {
+      return elementNr;
+    }
+
+    elemente.erase(it);
+    return findeWeitestenNachfolger(nachfolgerNr, nachfolgerNorm);
+  };
+
+  std::vector<std::pair<int, int>> result;
+
+  while (elemente.size() > 0) {
+    auto it = std::begin(elemente);
+    int elementNr = *it;
+    elemente.erase(it);
+
+    result.emplace_back(findeWeitestenNachfolger(elementNr, true), findeWeitestenNachfolger(elementNr, false));
+  }
+
+  return result;
+}
+
 int main(int argc, char** argv) {
   [[maybe_unused]] boost::nowide::args a(argc, argv);
 
@@ -246,7 +302,7 @@ int main(int argc, char** argv) {
   // Seine Breite ist die Breite des Stromabnehmer-Arbeitsbereiches.
   // Seine Hoehe ist die maximale Stromabnehmerhoehe.
   for (const auto& element : st3->Strecke->children_StrElement) {
-    if ((element->Volt == 0) || (element->Fkt & 0x2 /* Keine Gleisfunktion */) != 0) {
+    if (!element || (element->Volt == 0) || (element->Fkt & 0x2 /* Keine Gleisfunktion */) != 0) {
       continue;
     }
 
@@ -307,16 +363,28 @@ int main(int argc, char** argv) {
 
   dump << "</Landschaft></Zusi>";
 
+  std::unordered_set<int> kein_fahrdraht_warnung {};
+
   // Bestimme Hoehen
   for (const auto& element : st3->Strecke->children_StrElement) {
+    if (!element) {
+      continue;
+    }
+
     auto it = hoehe_by_element.find(element->Nr);
     if (it == std::end(hoehe_by_element)) {
       continue;
     }
     if (it->second == std::numeric_limits<Vec3::value_type>::infinity()) {
-      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << it->first << " bestimmt\n";
+      kein_fahrdraht_warnung.emplace(element->Nr);
+    }
+  }
+
+  for (const auto& [ anfang, ende ] : segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get())) {
+    if (anfang == ende) {
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << anfang << " bestimmt\n";
     } else {
-      // boost::nowide::cout << it->first << " " << it->second << "\n";
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifizierte Elemente " << anfang << "-" << ende << " bestimmt\n";
     }
   }
 
