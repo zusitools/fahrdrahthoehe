@@ -287,6 +287,24 @@ int main(int argc, char** argv) {
   std::string rel;
   glm::mat4 transform;
   liesLs3(st3->Strecke->Datei.Dateiname, rel, transform);
+
+  // Lies Landschaft von Nachbarmodulen ein
+  for (const auto& nachbarmodul_name : st3->Strecke->children_ModulDateien) {
+    const auto& nachbarmodul_pfad = zusixml::zusiPfadZuOsPfad(nachbarmodul_name->Datei.Dateiname, argv[1]);
+    const auto& nachbarmodul_st3 = zusixml::tryParse(nachbarmodul_pfad);
+    if (!nachbarmodul_st3 || !nachbarmodul_st3->Strecke) {
+      boost::nowide::cerr << "Nachbarmodul " << nachbarmodul_pfad << ": nicht gefunden\n";
+      continue;
+    }
+    if ((nachbarmodul_st3->Strecke->UTM->UTM_Zone != st3->Strecke->UTM->UTM_Zone) || (nachbarmodul_st3->Strecke->UTM->UTM_Zone2 != st3->Strecke->UTM->UTM_Zone2)) {
+      boost::nowide::cerr << "Nachbarmodul " << nachbarmodul_pfad << ": verschiedene UTM-Zonen\n";
+      continue;
+    }
+    auto utm_transform = glm::vec3((nachbarmodul_st3->Strecke->UTM->UTM_WE - st3->Strecke->UTM->UTM_WE) * 1000, (nachbarmodul_st3->Strecke->UTM->UTM_NS - st3->Strecke->UTM->UTM_NS) * 1000, 0);
+    transform = glm::translate(glm::mat4(), utm_transform);
+    liesLs3(nachbarmodul_st3->Strecke->Datei.Dateiname, rel, transform);
+  }
+
   dump << "</Landschaft></Zusi>";
 
   // Bestimme Hoehen
