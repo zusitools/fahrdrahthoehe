@@ -41,8 +41,8 @@ std::map<int, std::map<int, std::vector<int>>> elements_by_coordinate_div_10;
 
 std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-Subsets
 
-boost::nowide::ofstream dump("debug.ls3");
-// boost::nowide::ofstream hoehen("hoehen.txt");
+std::ofstream dump("debug.ls3");
+// std::ofstream hoehen("hoehen.txt");
 
 bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
@@ -221,7 +221,7 @@ void schreibeSt3(const std::string_view dateiname) {
   std::string out_string;
   rapidxml::print(std::back_inserter(out_string), doc, rapidxml::print_no_indenting);
 
-  boost::nowide::ofstream o(std::string(dateiname) + ".new.st3", std::ios::binary);
+  std::ofstream o(std::string(dateiname) + ".new.st3", std::ios::binary);
   o << out_string;
 }
 
