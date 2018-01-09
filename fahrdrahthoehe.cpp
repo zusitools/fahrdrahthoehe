@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
   // Seine Breite ist die Breite des Stromabnehmer-Arbeitsbereiches.
   // Seine Hoehe ist die maximale Stromabnehmerhoehe.
   for (const auto& element : st3->Strecke->children_StrElement) {
-    if (element->Volt == 0) {
+    if ((element->Volt == 0) || (element->Fkt & 0x2 /* Keine Gleisfunktion */) != 0) {
       continue;
     }
 
