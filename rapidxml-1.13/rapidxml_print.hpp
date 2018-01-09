@@ -44,7 +44,7 @@ namespace rapidxml
         // Copy characters from given range to given output iterator and expand
         // characters into references (&lt; &gt; &apos; &quot; &amp;)
         template<class OutIt, class Ch>
-        inline OutIt copy_and_expand_chars(const Ch *begin, const Ch *end, Ch noexpand, OutIt out)
+        inline OutIt copy_and_expand_chars(const Ch *begin, const Ch *end, Ch /*noexpand*/, OutIt out)
         {
             while (begin != end)
             {
@@ -89,7 +89,7 @@ namespace rapidxml
 
         // Print attributes of the node
         template<class OutIt, class Ch>
-        inline OutIt print_attributes(OutIt out, const xml_node<Ch> *node, int flags)
+        inline OutIt print_attributes(OutIt out, const xml_node<Ch> *node, int /*flags*/)
         {
             for (xml_attribute<Ch> *attribute = node->first_attribute(); attribute; attribute = attribute->next_attribute())
             {
