@@ -35,7 +35,9 @@ struct Quad {
 };
 
 std::unordered_map<int, Quad> quad_by_element;
-std::map<int, Vec3::value_type> hoehe_by_element;
+std::unordered_map<int, Vec3::value_type> hoehe_by_element;
+
+std::map<int, std::map<int, std::vector<int>>> elements_by_coordinate_div_10;
 
 std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-Subsets
 
@@ -66,11 +68,15 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
       continue;
     }
 
-#ifndef READ_LSB
+#if !READ_LSB
     if (subset->MeshI != 0) {
       boost::nowide::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
     }
 #endif
+
+    if (subset->children_Vertex.size() == 0) {
+      continue;
+    }
 
     hat_fahrdraht = true;
 
@@ -78,10 +84,43 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
       vertex.p = glm::vec3(transform * glm::vec4(vertex.p.x, vertex.p.y, vertex.p.z, 1));
     }
 
+    // Performance: Triff Vorauswahl von Streckenelementen anhand von x- und y-Koordinaten
+    const auto [ minXIt, maxXIt ] = std::minmax_element(std::begin(subset->children_Vertex), std::end(subset->children_Vertex),
+        [](const auto& lhs, const auto& rhs) { return lhs.p.x < rhs.p.x; });
+    const auto [ minYIt, maxYIt ] = std::minmax_element(std::begin(subset->children_Vertex), std::end(subset->children_Vertex),
+        [](const auto& lhs, const auto& rhs) { return lhs.p.y < rhs.p.y; });
+
+    const auto minX = minXIt->p.x;
+    const auto maxX = maxXIt->p.x;
+    assert(minX <= maxX);
+
+    const auto minY = minYIt->p.y;
+    const auto maxY = maxYIt->p.y;
+    assert(minY <= maxY);
+
+    std::vector<std::pair<int, Quad*>> quads_to_check {};
+#ifndef NDEBUG
+    std::vector<int> checkedElements {};
+#endif
+
+    auto it_x = elements_by_coordinate_div_10.lower_bound(minX / 10 - 1);
+    const auto it_x_end = elements_by_coordinate_div_10.upper_bound(maxX / 10 + 2);
+    for (; it_x != it_x_end; ++it_x) {
+      auto it_y = it_x->second.lower_bound(minY / 10 - 1);
+      const auto it_y_end = it_x->second.upper_bound(maxY / 10 + 2);
+      for (; it_y != it_y_end; ++it_y) {
+        for (const auto elementNr : it_y->second) {
+          quads_to_check.push_back(std::make_pair(elementNr, &quad_by_element.at(elementNr)));
+#ifndef NDEBUG
+          checkedElements.push_back(elementNr);
+#endif
+        }
+      }
+    }
+
     for (const auto& face : subset->children_Face) {
       // Fuer jede Dreiecksseite berechne Strecke zwischen Vertices
       for (const auto& vertices : {
-          // TODO: Vertices und Faces im Parser inlinen
           // TODO: Nur annaehernd horizontale Faces betrachten
           std::make_pair(&subset->children_Vertex[face.i[0]], &subset->children_Vertex[face.i[1]]),
           std::make_pair(&subset->children_Vertex[face.i[1]], &subset->children_Vertex[face.i[2]]),
@@ -89,20 +128,30 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
         Vec3 richtungsvektor = vertices.second->p - vertices.first->p;
 
         // Fuer jedes Streckenelement berechne Schnittpunkt der Strecke mit dessen Ebene
-        for (const auto& [ elementNr, quad ] : quad_by_element) {
-          // quad.v = { unten rechts, unten links, oben rechts, oben links }
-          for (const auto& [ v1, v2, v3 ] : { std::forward_as_tuple(quad.v[0], quad.v[2], quad.v[1]), std::forward_as_tuple(quad.v[1], quad.v[3], quad.v[2]) }) {
+#ifndef NDEBUG
+        for (const auto& [ elementNr, quad_ ] : quad_by_element) {
+          const auto* quad = &quad_;
+#else
+        for (const auto& [ elementNr, quad ] : quads_to_check) {
+#endif
+          // quad->v = { unten rechts, unten links, oben rechts, oben links }
+          for (const auto& [ v1, v2, v3 ] : { std::forward_as_tuple(quad->v[0], quad->v[2], quad->v[1]), std::forward_as_tuple(quad->v[1], quad->v[3], quad->v[2]) }) {
             Vec3 pos_bary;
             bool intersect = glm::intersectLineTriangle(vertices.first->p, richtungsvektor, v1, v2, v3, pos_bary);
             // intersectRayTriangle: Z-Koordinate von pos_bary ist Faktor fuer Richtungsvektor
             // intersectLineTriangle: X-Koordinate von pos_bary ist Faktor fuer Richtungsvektor
             Vec3::value_type faktor = pos_bary.x;
             if (intersect && faktor >= -0.001 && faktor <= 1.001) {
+#ifndef NDEBUG
+              if (std::find(std::begin(checkedElements), std::end(checkedElements), elementNr) == std::end(checkedElements)) {
+                assert(false);
+              }
+#endif
 
               Vec3 schnittpunkt = vertices.first->p + faktor * richtungsvektor;
               dump << "<Ankerpunkt><p X='" << schnittpunkt.x << "' Y='" << schnittpunkt.y << "' Z='" << schnittpunkt.z << "'/></Ankerpunkt>\n";
 
-              Vec3::value_type dist = glm::dot(quad.up, schnittpunkt) + quad.d;
+              Vec3::value_type dist = glm::dot(quad->up, schnittpunkt) + quad->d;
               hoehe_by_element[elementNr] = std::min(hoehe_by_element[elementNr], dist);
             }
           }
@@ -206,6 +255,8 @@ int main(int argc, char** argv) {
 
     Vec3 normalenvektor = element->b - element->g;
     Vec3 ortsvektor = element->g + Vec3::value_type(0.5) * normalenvektor;
+
+    elements_by_coordinate_div_10[ortsvektor[0] / 10][ortsvektor[1] / 10].push_back(element->Nr);
 
     Vec3 up = glm::rotate(Vec3(0, 0, 1), static_cast<Vec3::value_type>(element->Ueberh), normalenvektor);
 
