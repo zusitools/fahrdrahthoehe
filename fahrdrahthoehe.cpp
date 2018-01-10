@@ -380,7 +380,10 @@ int main(int argc, char** argv) {
     }
   }
 
-  for (const auto& [ anfang, ende ] : segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get())) {
+  auto kein_fahrdraht_warnung_segmentiert = segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get());
+  std::sort(std::begin(kein_fahrdraht_warnung_segmentiert), std::end(kein_fahrdraht_warnung_segmentiert),
+      [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+  for (const auto& [ anfang, ende ] : kein_fahrdraht_warnung_segmentiert) {
     if (anfang == ende) {
       boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << anfang << " bestimmt\n";
     } else {
