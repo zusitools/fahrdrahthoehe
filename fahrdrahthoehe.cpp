@@ -19,6 +19,7 @@
 #include <algorithm>
 // #include <charconv>
 #include <cstdlib>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <unordered_map>
@@ -365,6 +366,9 @@ int main(int argc, char** argv) {
 
   std::unordered_set<int> kein_fahrdraht_warnung {};
 
+  constexpr Vec3::value_type diff_warning_threshold = 0.1;
+  size_t anzahl_korrekturen_kleiner_threshold = 0;
+
   // Bestimme Hoehen
   for (const auto& element : st3->Strecke->children_StrElement) {
     if (!element) {
@@ -377,7 +381,18 @@ int main(int argc, char** argv) {
     }
     if (it->second == std::numeric_limits<Vec3::value_type>::infinity()) {
       kein_fahrdraht_warnung.emplace(element->Nr);
+    } else {
+      auto diff = it->second - element->Drahthoehe;
+      if (std::abs(diff) >= diff_warning_threshold) {
+        boost::nowide::cerr << "Korrektur um " << std::showpos << (diff * 100) << std::noshowpos << " cm an Element " << element->Nr << "\n";
+      } else {
+        ++anzahl_korrekturen_kleiner_threshold;
+      }
     }
+  }
+
+  if (anzahl_korrekturen_kleiner_threshold > 0) {
+    boost::nowide::cerr << anzahl_korrekturen_kleiner_threshold << " Korrektur(en) um < 10 cm\n";
   }
 
   auto kein_fahrdraht_warnung_segmentiert = segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get());
