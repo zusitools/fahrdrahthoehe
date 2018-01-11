@@ -47,8 +47,10 @@ std::map<int, std::map<int, std::vector<int>>> elements_by_coordinate_div_10;
 
 std::unordered_set<std::string> kein_fahrdraht;  // LS3-Dateien ohne Fahrdraht-Subsets
 
-std::ofstream dump("debug.ls3");
+std::ofstream dump;
 // std::ofstream hoehen("hoehen.txt");
+
+bool debug;
 
 bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
@@ -155,7 +157,9 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
 #endif
 
               Vec3 schnittpunkt = vertices.first->p + faktor * richtungsvektor;
-              dump << "<Ankerpunkt><p X='" << schnittpunkt.x << "' Y='" << schnittpunkt.y << "' Z='" << schnittpunkt.z << "'/></Ankerpunkt>\n";
+              if (debug) {
+                dump << "<Ankerpunkt><p X='" << schnittpunkt.x << "' Y='" << schnittpunkt.y << "' Z='" << schnittpunkt.z << "'/></Ankerpunkt>\n";
+              }
 
               Vec3::value_type dist = glm::dot(quad->up, schnittpunkt) + quad->d;
               hoehe_by_element[elementNr] = std::min(hoehe_by_element[elementNr], dist);
@@ -290,18 +294,34 @@ std::vector<std::pair<int, int>> segmentiere(std::unordered_set<int> elemente, c
 int main(int argc, char** argv) {
   [[maybe_unused]] boost::nowide::args a(argc, argv);
 
-  if (argc != 2) {
-    boost::nowide::cerr << "Usage: ./fahrdrahthoehe [st3 file]\n";
+  if (argc < 2) {
+    boost::nowide::cerr << "Usage: ./fahrdrahthoehe [--debug] [st3 file]\n";
     return 1;
   }
 
+  for (size_t i = 1; i < argc - 1; ++i) {
+    using namespace std::literals::string_literals;
+    if ("--debug"s == argv[i]) {
+      debug = true;
+    } else {
+      boost::nowide::cerr << "Usage: ./fahrdrahthoehe [--debug] [st3 file]\n";
+      return 1;
+    }
+  }
+
+  if (debug) {
+    dump.open("debug.ls3");
+  }
+
   // Lies Moduldatei ein
-  const auto& st3 = zusixml::tryParse(argv[1]);
+  const auto& st3 = zusixml::tryParse(argv[argc-1]);
   if (!st3 || !st3->Strecke) {
     return 1;
   }
 
-  dump << "<Zusi><Landschaft>";
+  if (debug) {
+    dump << "<Zusi><Landschaft>";
+  }
 
   // Fuer jedes Streckenelement, das elektrifiziert ist, bestimme Schnittbereich.
   // Dieser ist ein Viereck (= 2 Dreiecke), dessen Normalenvektor der Richtungsvektor des Streckenelements ist.
@@ -328,14 +348,16 @@ int main(int argc, char** argv) {
     Vec3 v3 = v1 + max_sa_hoehe * up;
     Vec3 v4 = v2 + max_sa_hoehe * up;
 
-    dump << "<SubSet>" <<
-      "<Vertex><p X='" << v1[0] << "' Y='" << v1[1] << "' Z='" << v1[2] << "'/></Vertex>" <<
-      "<Vertex><p X='" << v2[0] << "' Y='" << v2[1] << "' Z='" << v2[2] << "'/></Vertex>" <<
-      "<Vertex><p X='" << v3[0] << "' Y='" << v3[1] << "' Z='" << v3[2] << "'/></Vertex>" <<
-      "<Vertex><p X='" << v4[0] << "' Y='" << v4[1] << "' Z='" << v4[2] << "'/></Vertex>" <<
-      "<Face i='0;1;2'/><Face i='3;2;1'/>" <<
-      "<Face i='2;1;0'/><Face i='1;2;3'/>" <<
-      "</SubSet>\n";
+    if (debug) {
+      dump << "<SubSet>" <<
+        "<Vertex><p X='" << v1[0] << "' Y='" << v1[1] << "' Z='" << v1[2] << "'/></Vertex>" <<
+        "<Vertex><p X='" << v2[0] << "' Y='" << v2[1] << "' Z='" << v2[2] << "'/></Vertex>" <<
+        "<Vertex><p X='" << v3[0] << "' Y='" << v3[1] << "' Z='" << v3[2] << "'/></Vertex>" <<
+        "<Vertex><p X='" << v4[0] << "' Y='" << v4[1] << "' Z='" << v4[2] << "'/></Vertex>" <<
+        "<Face i='0;1;2'/><Face i='3;2;1'/>" <<
+        "<Face i='2;1;0'/><Face i='1;2;3'/>" <<
+        "</SubSet>\n";
+    }
 
     quad_by_element.emplace(std::make_pair(element->Nr, Quad {
           { v1, v2, v3, v4 },
@@ -367,7 +389,9 @@ int main(int argc, char** argv) {
     liesLs3(nachbarmodul_st3->Strecke->Datei.Dateiname, rel, transform);
   }
 
-  dump << "</Landschaft></Zusi>";
+  if (debug) {
+    dump << "</Landschaft></Zusi>";
+  }
 
   std::unordered_set<int> kein_fahrdraht_warnung {};
 
@@ -411,5 +435,5 @@ int main(int argc, char** argv) {
     }
   }
 
-  schreibeSt3(argv[1]);
+  schreibeSt3(argv[argc-1]);
 }
