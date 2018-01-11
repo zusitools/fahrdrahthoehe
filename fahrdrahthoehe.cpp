@@ -394,6 +394,7 @@ int main(int argc, char** argv) {
   }
 
   std::unordered_set<int> kein_fahrdraht_warnung {};
+  std::unordered_set<int> korrektur_warnung {};
 
   constexpr Vec3::value_type diff_warning_threshold = 0.1;
   size_t anzahl_korrekturen_kleiner_threshold = 0;
@@ -413,15 +414,11 @@ int main(int argc, char** argv) {
     } else {
       auto diff = it->second - element->Drahthoehe;
       if (std::abs(diff) >= diff_warning_threshold) {
-        boost::nowide::cerr << "Korrektur um " << std::showpos << (diff * 100) << std::noshowpos << " cm an Element " << element->Nr << "\n";
+        korrektur_warnung.emplace(element->Nr);
       } else {
         ++anzahl_korrekturen_kleiner_threshold;
       }
     }
-  }
-
-  if (anzahl_korrekturen_kleiner_threshold > 0) {
-    boost::nowide::cerr << anzahl_korrekturen_kleiner_threshold << " Korrektur(en) um < 10 cm\n";
   }
 
   auto kein_fahrdraht_warnung_segmentiert = segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get());
@@ -432,6 +429,20 @@ int main(int argc, char** argv) {
     } else {
       boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifizierte Elemente " << anfang << "-" << ende << " bestimmt\n";
     }
+  }
+
+  auto korrektur_warnung_segmentiert = segmentiere(korrektur_warnung, *st3->Strecke.get());
+  std::sort(std::begin(korrektur_warnung_segmentiert), std::end(korrektur_warnung_segmentiert));
+  for (const auto& [ anfang, ende ] : korrektur_warnung_segmentiert) {
+    if (anfang == ende) {
+      boost::nowide::cerr << "Korrektur um >= 10 cm an Element " << anfang << "\n";
+    } else {
+      boost::nowide::cerr << "Korrektur um >= 10 cm an Element " << anfang << "-" << ende << "\n";
+    }
+  }
+
+  if (anzahl_korrekturen_kleiner_threshold > 0) {
+    boost::nowide::cerr << anzahl_korrekturen_kleiner_threshold << " Korrektur(en) um < 10 cm\n";
   }
 
   schreibeSt3(argv[argc-1]);
