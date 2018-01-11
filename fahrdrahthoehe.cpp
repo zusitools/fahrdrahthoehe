@@ -285,7 +285,7 @@ std::vector<std::pair<int, int>> segmentiere(std::unordered_set<int> elemente, c
     int elementNr = *it;
     elemente.erase(it);
 
-    result.emplace_back(findeWeitestenNachfolger(elementNr, true), findeWeitestenNachfolger(elementNr, false));
+    result.emplace_back(std::minmax(findeWeitestenNachfolger(elementNr, true), findeWeitestenNachfolger(elementNr, false)));
   }
 
   return result;
@@ -425,8 +425,7 @@ int main(int argc, char** argv) {
   }
 
   auto kein_fahrdraht_warnung_segmentiert = segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get());
-  std::sort(std::begin(kein_fahrdraht_warnung_segmentiert), std::end(kein_fahrdraht_warnung_segmentiert),
-      [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+  std::sort(std::begin(kein_fahrdraht_warnung_segmentiert), std::end(kein_fahrdraht_warnung_segmentiert));
   for (const auto& [ anfang, ende ] : kein_fahrdraht_warnung_segmentiert) {
     if (anfang == ende) {
       boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << anfang << " bestimmt\n";
