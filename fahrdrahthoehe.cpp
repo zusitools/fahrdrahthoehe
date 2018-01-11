@@ -20,6 +20,7 @@
 // #include <charconv>
 #include <cstdlib>
 #include <iomanip>
+#include <functional>
 #include <limits>
 #include <map>
 #include <unordered_map>
@@ -27,6 +28,10 @@
 
 #if READ_LSB
 #include "lsb.hpp"
+#endif
+
+#ifdef WIN32
+#define UNICODE
 #endif
 
 struct Quad {
