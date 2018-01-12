@@ -68,6 +68,8 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
   if (std::any_of(std::begin(ls3->Landschaft->children_SubSet), std::end(ls3->Landschaft->children_SubSet), [](const auto& s) { return s->TypLs3 == 14; })) {
     readLsb(ls3->Landschaft.get(), pfad);
   }
+#else
+  bool lsb_warnung = false;
 #endif
 
   // Fuer jedes Subset mit LS3-Typ "Fahrleitung": iteriere ueber Dreiecke
@@ -77,8 +79,9 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
     }
 
 #if !READ_LSB
-    if (subset->MeshI != 0) {
+    if ((subset->MeshI != 0) && !lsb_warnung) {
       boost::nowide::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
+      lsb_warnung = true;
     }
 #endif
 
