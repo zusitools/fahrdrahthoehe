@@ -238,57 +238,79 @@ void schreibeSt3(const std::string_view dateiname) {
   o << out_string;
 }
 
-std::vector<std::pair<int, int>> segmentiere(std::unordered_set<int> elemente, const Strecke& strecke) {
-  std::function<int(int, bool)> findeWeitestenNachfolger = [&strecke, &elemente, &findeWeitestenNachfolger](int elementNr, bool norm) -> int {
+struct ElementIntervall {
+  int anfang;
+  int ende;
+  size_t anzahl_elemente { 0 };
+  bool streckenende { false };
+};
+
+bool operator<(const struct ElementIntervall& left, const struct ElementIntervall& right) {
+  return std::pair { left.anfang, left.ende } < std::pair { right.anfang, right.ende };
+}
+
+std::vector<ElementIntervall> segmentiere(std::unordered_set<int> elemente, const Strecke& strecke) {
+  using ElementNrUndAnzahl = std::pair<int, size_t>;
+
+  // Gibt ein ElementIntervall zurueck, bei dem anfang==0 ist und nur "ende" befuellt ist.
+  std::function<ElementIntervall(int, bool)> findeWeitestenNachfolger = [&strecke, &elemente, &findeWeitestenNachfolger](int elementNr, bool norm) -> ElementIntervall {
     if (elementNr < 0 || static_cast<std::size_t>(elementNr) >= strecke.children_StrElement.size()) {
-      return elementNr;
+      return { 0, elementNr, 0, false };
     }
 
     const auto& strElement = strecke.children_StrElement.at(elementNr);
     if (!strElement) {
-      return elementNr;
+      return { 0, elementNr, 0, false };
     }
 
-    // TODO: Annahme: Wenn der erste Nachfolger ein NachXXXModul ist, folgen danach keine NachXXX-Elemente
+    // TODO: Annahme: Ein Element hat entweder Nachfolger im selben Modul oder Nachfolger in einem anderen Modul,
+    // aber nicht beides.
     const auto& nachfolger = norm ? strElement->children_NachNorm : strElement->children_NachGegen;
-    if (nachfolger.size() == 0) {
-      return elementNr;
+    if (nachfolger.empty()) {
+      return { 0, elementNr, 0, true };
     }
 
     int nachfolgerNr = nachfolger.front().Nr;
 
     auto it = elemente.find(nachfolgerNr);
     if (it == std::end(elemente)) {
-      return elementNr;
+      return { 0, elementNr, 0, false };
     }
 
     if (nachfolgerNr < 0 || static_cast<std::size_t>(nachfolgerNr) >= strecke.children_StrElement.size()) {
-      return elementNr;
+      return { 0, elementNr, 0, false };
     }
 
     bool nachfolgerNorm = ((strElement->Anschluss >> (norm ? 0 : 8)) & 1) == 0;
     const auto& nachfolgerElement = strecke.children_StrElement.at(nachfolgerNr);
     if (!nachfolgerElement) {
-      return elementNr;
+      return { 0, elementNr, 0, false };
     }
 
     const auto& nachfolgerVorgaenger = nachfolgerNorm ? nachfolgerElement->children_NachGegen : nachfolgerElement->children_NachNorm;
     if (nachfolgerVorgaenger.size() == 0 || nachfolgerVorgaenger.front().Nr != elementNr) {
-      return elementNr;
+      return { 0, elementNr, 0, false };
     }
 
     elemente.erase(it);
-    return findeWeitestenNachfolger(nachfolgerNr, nachfolgerNorm);
+    const auto result = findeWeitestenNachfolger(nachfolgerNr, nachfolgerNorm);
+    return { result.anfang, result.ende, result.anzahl_elemente + 1, result.streckenende };
   };
 
-  std::vector<std::pair<int, int>> result;
+  std::vector<ElementIntervall> result;
 
   while (elemente.size() > 0) {
-    auto it = std::begin(elemente);
+    const auto it = std::begin(elemente);
     int elementNr = *it;
     elemente.erase(it);
 
-    result.emplace_back(std::minmax(findeWeitestenNachfolger(elementNr, true), findeWeitestenNachfolger(elementNr, false)));
+    const auto weitesterNachfolgerNorm = findeWeitestenNachfolger(elementNr, true);
+    const auto weitesterNachfolgerGegen = findeWeitestenNachfolger(elementNr, false);
+
+    const auto elementNummern = std::minmax(weitesterNachfolgerNorm.ende, weitesterNachfolgerGegen.ende);
+    result.emplace_back(ElementIntervall { elementNummern.first, elementNummern.second,
+        weitesterNachfolgerNorm.anzahl_elemente + weitesterNachfolgerGegen.anzahl_elemente + 1,
+        weitesterNachfolgerNorm.streckenende || weitesterNachfolgerGegen.streckenende });
   }
 
   return result;
@@ -426,21 +448,28 @@ int main(int argc, char** argv) {
 
   auto kein_fahrdraht_warnung_segmentiert = segmentiere(kein_fahrdraht_warnung, *st3->Strecke.get());
   std::sort(std::begin(kein_fahrdraht_warnung_segmentiert), std::end(kein_fahrdraht_warnung_segmentiert));
-  for (const auto& [ anfang, ende ] : kein_fahrdraht_warnung_segmentiert) {
-    if (anfang == ende) {
-      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << anfang << " bestimmt\n";
+  for (const auto& intervall : kein_fahrdraht_warnung_segmentiert) {
+    if (intervall.anzahl_elemente == 1) {
+      assert(intervall.anfang == intervall.ende);
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << intervall.anfang << " bestimmt";
     } else {
-      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifizierte Elemente " << anfang << "-" << ende << " bestimmt\n";
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer " << intervall.anzahl_elemente << " elektrifizierte Elemente " << intervall.anfang << "-" << intervall.ende << " bestimmt";
     }
+
+    if (intervall.streckenende) {
+      boost::nowide::cerr << " [Streckenende]";
+    }
+
+    boost::nowide::cerr << '\n';
   }
 
   auto korrektur_warnung_segmentiert = segmentiere(korrektur_warnung, *st3->Strecke.get());
   std::sort(std::begin(korrektur_warnung_segmentiert), std::end(korrektur_warnung_segmentiert));
-  for (const auto& [ anfang, ende ] : korrektur_warnung_segmentiert) {
-    if (anfang == ende) {
-      boost::nowide::cerr << "Korrektur um >= 10 cm an Element " << anfang << "\n";
+  for (const auto& intervall : korrektur_warnung_segmentiert) {
+    if (intervall.anfang == intervall.ende) {
+      boost::nowide::cerr << "Korrektur um >= 10 cm an Element " << intervall.anfang << "\n";
     } else {
-      boost::nowide::cerr << "Korrektur um >= 10 cm an Element " << anfang << "-" << ende << "\n";
+      boost::nowide::cerr << "Korrektur um >= 10 cm an Element " << intervall.anfang << "-" << intervall.ende << "\n";
     }
   }
 
