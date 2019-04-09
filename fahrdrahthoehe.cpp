@@ -175,7 +175,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
 
   for (const auto& verknuepfte : ls3->Landschaft->children_Verknuepfte) {
     glm::mat4 rot_verkn = glm::eulerAngleXYZ(verknuepfte->phi.x, verknuepfte->phi.y, verknuepfte->phi.z);
-    glm::mat4 transl_verkn = glm::translate(glm::mat4(), glm::vec3(verknuepfte->p.x, verknuepfte->p.y, verknuepfte->p.z));
+    glm::mat4 transl_verkn = glm::translate(glm::mat4(1.0), glm::vec3(verknuepfte->p.x, verknuepfte->p.y, verknuepfte->p.z));
     glm::mat4 transform_verkn = transl_verkn * rot_verkn * transform;
 
     hat_fahrdraht = liesLs3(verknuepfte->Datei.Dateiname, pfad, transform_verkn) || hat_fahrdraht; // Reihenfolge!
@@ -394,7 +394,7 @@ int main(int argc, char** argv) {
 
   // Lies Landschaftsdatei ein (rekursiv)
   std::string rel;
-  glm::mat4 transform;
+  glm::mat4 transform(1.0);
   liesLs3(st3->Strecke->Datei.Dateiname, rel, transform);
 
   // Lies Landschaft von Nachbarmodulen ein
@@ -410,7 +410,7 @@ int main(int argc, char** argv) {
       continue;
     }
     auto utm_transform = glm::vec3((nachbarmodul_st3->Strecke->UTM->UTM_WE - st3->Strecke->UTM->UTM_WE) * 1000, (nachbarmodul_st3->Strecke->UTM->UTM_NS - st3->Strecke->UTM->UTM_NS) * 1000, 0);
-    transform = glm::translate(glm::mat4(), utm_transform);
+    transform = glm::translate(glm::mat4(1.0), utm_transform);
     liesLs3(nachbarmodul_st3->Strecke->Datei.Dateiname, rel, transform);
   }
 
