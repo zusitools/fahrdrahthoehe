@@ -45,7 +45,7 @@ namespace rapidxml
     //! </pre>
     //! \param what Human readable description of the error.
     //! \param where Pointer to character data where error was detected.
-    void parse_error_handler(const char *what, void *where);
+    void parse_error_handler(const char *what, const void *where);
 }
 
 #else
@@ -74,7 +74,7 @@ namespace rapidxml
     public:
     
         //! Constructs parse error
-        parse_error(const char *what, void *where)
+        parse_error(const char *what, const void *where)
             : m_what(what)
             , m_where(where)
         {
@@ -99,7 +99,7 @@ namespace rapidxml
     private:  
 
         const char *m_what;
-        void *m_where;
+        const void *m_where;
 
     };
 }
@@ -473,7 +473,7 @@ namespace rapidxml
         //! \param source String to initialize the allocated memory with, or 0 to not initialize it.
         //! \param size Number of characters to allocate, or zero to calculate it automatically from source string length; if size is 0, source string must be specified and null terminated.
         //! \return Pointer to allocated char array. This pointer will never be NULL.
-        Ch *allocate_string(const Ch *source = 0, std::size_t size = 0)
+        std::remove_const_t<Ch> *allocate_string(const Ch *source = 0, std::size_t size = 0)
         {
             assert(source || size);     // Either source or size (or both) must be specified
             if (size == 0)
@@ -1567,7 +1567,7 @@ namespace rapidxml
         // - replacing XML character entity references with proper characters (&apos; &amp; &quot; &lt; &gt; &#...;)
         // - condensing whitespace sequences to single space character
         template<class StopPred, class StopPredPure, int Flags>
-        static Ch *skip_and_expand_character_refs(Ch *&text)
+        static Ch *skip_and_expand_character_refs(std::remove_const_t<Ch> *&text)
         {
             // If entity translation, whitespace condense and whitespace trimming is disabled, use plain skip
             if (Flags & parse_no_entity_translation && 
@@ -1945,7 +1945,7 @@ namespace rapidxml
             
             // Skip until end of data
             Ch *value = text, *end;
-            if (Flags & parse_normalize_whitespace)
+            if constexpr (Flags & parse_normalize_whitespace)
                 end = skip_and_expand_character_refs<text_pred, text_pure_with_ws_pred, Flags>(text);   
             else
                 end = skip_and_expand_character_refs<text_pred, text_pure_no_ws_pred, Flags>(text);
