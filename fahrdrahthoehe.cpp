@@ -52,14 +52,15 @@ std::ofstream dump;
 
 bool debug;
 
-bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::mat4& transform) {
+bool liesLs3(const std::string& dateiname, const zusixml::ZusiPfad& rel, const glm::mat4& transform) {
   bool hat_fahrdraht = false;
-  const auto& pfad = zusixml::zusiPfadZuOsPfad(dateiname, rel);
-  if (kein_fahrdraht.find(pfad) != std::end(kein_fahrdraht)) {
+  const auto& pfad = zusixml::ZusiPfad::vonZusiPfad(dateiname, rel);
+  const auto& osPfad = pfad.alsOsPfad();
+  if (kein_fahrdraht.find(osPfad) != std::end(kein_fahrdraht)) {
     return false;
   }
 
-  const auto& ls3 = zusixml::tryParse(pfad);
+  const auto& ls3 = zusixml::tryParseFile(osPfad);
   if (!ls3 || !ls3->Landschaft) {
     return false;
   }
@@ -80,7 +81,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
 
 #if !READ_LSB
     if ((subset->MeshI != 0) && !lsb_warnung) {
-      boost::nowide::cerr << "Warnung: " << pfad << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
+      boost::nowide::cerr << "Warnung: " << pfad.alsZusiPfad() << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
       lsb_warnung = true;
     }
 #endif
@@ -182,7 +183,7 @@ bool liesLs3(const std::string& dateiname, const std::string& rel, const glm::ma
   }
 
   if (!hat_fahrdraht) {
-    kein_fahrdraht.emplace(pfad);
+    kein_fahrdraht.emplace(osPfad);
   }
 
   return hat_fahrdraht;
@@ -339,7 +340,7 @@ int main(int argc, char** argv) {
   }
 
   // Lies Moduldatei ein
-  const auto& st3 = zusixml::tryParse(argv[argc-1]);
+  const auto& st3 = zusixml::tryParseFile(argv[argc-1]);
   if (!st3 || !st3->Strecke) {
     return 1;
   }
@@ -393,25 +394,26 @@ int main(int argc, char** argv) {
   }
 
   // Lies Landschaftsdatei ein (rekursiv)
-  std::string rel;
-  glm::mat4 transform(1.0);
+  const auto rel = zusixml::ZusiPfad::vonOsPfad(argv[1]);
+  glm::mat4 transform(1.0);  // Identitaetsmatrix
   liesLs3(st3->Strecke->Datei.Dateiname, rel, transform);
 
   // Lies Landschaft von Nachbarmodulen ein
   for (const auto& nachbarmodul_name : st3->Strecke->children_ModulDateien) {
-    const auto& nachbarmodul_pfad = zusixml::zusiPfadZuOsPfad(nachbarmodul_name->Datei.Dateiname, argv[1]);
-    const auto& nachbarmodul_st3 = zusixml::tryParse(nachbarmodul_pfad);
+    const auto& nachbarmodul_pfad = zusixml::ZusiPfad::vonZusiPfad(nachbarmodul_name->Datei.Dateiname, rel);
+    const auto& nachbarmodul_pfad_os = nachbarmodul_pfad.alsOsPfad();
+    const auto& nachbarmodul_st3 = zusixml::tryParseFile(nachbarmodul_pfad_os);
     if (!nachbarmodul_st3 || !nachbarmodul_st3->Strecke) {
-      boost::nowide::cerr << "Nachbarmodul " << nachbarmodul_pfad << ": nicht gefunden\n";
+      boost::nowide::cerr << "Nachbarmodul " << nachbarmodul_pfad.alsZusiPfad() << ": nicht gefunden\n";
       continue;
     }
     if ((nachbarmodul_st3->Strecke->UTM->UTM_Zone != st3->Strecke->UTM->UTM_Zone) || (nachbarmodul_st3->Strecke->UTM->UTM_Zone2 != st3->Strecke->UTM->UTM_Zone2)) {
-      boost::nowide::cerr << "Nachbarmodul " << nachbarmodul_pfad << ": verschiedene UTM-Zonen\n";
+      boost::nowide::cerr << "Nachbarmodul " << nachbarmodul_pfad.alsZusiPfad() << ": verschiedene UTM-Zonen\n";
       continue;
     }
     auto utm_transform = glm::vec3((nachbarmodul_st3->Strecke->UTM->UTM_WE - st3->Strecke->UTM->UTM_WE) * 1000, (nachbarmodul_st3->Strecke->UTM->UTM_NS - st3->Strecke->UTM->UTM_NS) * 1000, 0);
     transform = glm::translate(glm::mat4(1.0), utm_transform);
-    liesLs3(nachbarmodul_st3->Strecke->Datei.Dateiname, rel, transform);
+    liesLs3(nachbarmodul_st3->Strecke->Datei.Dateiname, nachbarmodul_pfad, transform);
   }
 
   if (debug) {
