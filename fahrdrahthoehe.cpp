@@ -1,6 +1,7 @@
 #include "zusi_parser/zusi_types.hpp"
 #include "zusi_parser/zusi_parser.hpp"
 #include "zusi_parser/utils.hpp"
+#include "zusi_parser/lsb.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtx/euler_angles.hpp>
@@ -25,10 +26,6 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
-
-#if READ_LSB
-#include "lsb.hpp"
-#endif
 
 #ifdef WIN32
 #define UNICODE
@@ -65,26 +62,15 @@ bool liesLs3(const std::string& dateiname, const zusixml::ZusiPfad& rel, const g
     return false;
   }
 
-#if READ_LSB
   if (std::any_of(std::begin(ls3->Landschaft->children_SubSet), std::end(ls3->Landschaft->children_SubSet), [](const auto& s) { return s->TypLs3 == 14; })) {
     readLsb(ls3->Landschaft.get(), pfad);
   }
-#else
-  bool lsb_warnung = false;
-#endif
 
   // Fuer jedes Subset mit LS3-Typ "Fahrleitung": iteriere ueber Dreiecke
   for (const auto& subset : ls3->Landschaft->children_SubSet) {
     if (subset->TypLs3 != 14) {
       continue;
     }
-
-#if !READ_LSB
-    if ((subset->MeshI != 0) && !lsb_warnung) {
-      boost::nowide::cerr << "Warnung: " << pfad.alsZusiPfad() << " enthaelt Subset mit streng geheimen Geometriedaten (lsb-Format).\n";
-      lsb_warnung = true;
-    }
-#endif
 
     if (subset->children_Vertex.size() == 0) {
       continue;
