@@ -17,11 +17,14 @@ generate_zusi_parser(zusi_parser ${CMAKE_CURRENT_BINARY_DIR}/zusi_parser
     Material::TypLs3
     ModulDateiVerknuepfung::Datei
     NachfolgerSelbesModul::Nr
+    NachfolgerAnderesModul::Datei
     StrElement::Anschluss
     StrElement::Drahthoehe
     StrElement::Fkt
     StrElement::NachGegen
     StrElement::NachNorm
+    StrElement::NachGegenModul
+    StrElement::NachNormModul
     StrElement::Ueberh
     StrElement::Volt
     StrElement::b
