@@ -54,7 +54,7 @@ generate_zusi_parser(zusi_parser ${CMAKE_CURRENT_BINARY_DIR}/zusi_parser
   IGNORE_UNKNOWN
   USE_GLM)
 
-add_executable(fahrdrahthoehe fahrdrahthoehe.cpp nowide/src/iostream.cpp)
+add_executable(fahrdrahthoehe fahrdrahthoehe.cpp nowide/src/iostream.cpp version.rc)
 target_link_libraries(fahrdrahthoehe PRIVATE zusi_parser)
 
 find_package(Boost COMPONENTS filesystem REQUIRED)
