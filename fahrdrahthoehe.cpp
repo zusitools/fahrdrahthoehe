@@ -221,8 +221,10 @@ void schreibeSt3(const std::string_view dateiname) {
   std::string out_string;
   rapidxml::print(std::back_inserter(out_string), doc, rapidxml::print_no_indenting);
 
-  std::ofstream o(std::string(dateiname) + ".new.st3", std::ios::binary);
+  std::string out_dateiname { std::string(dateiname) + ".new.st3" };
+  std::ofstream o(out_dateiname, std::ios::binary);
   o << out_string;
+  boost::nowide::cerr << out_dateiname << " geschrieben\n";
 }
 
 struct ElementIntervall {
