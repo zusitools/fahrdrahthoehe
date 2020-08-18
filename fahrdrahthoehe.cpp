@@ -231,6 +231,7 @@ struct ElementIntervall {
   int anfang;
   int ende;
   size_t anzahl_elemente { 0 };
+  float laenge;
   bool streckenende { false };
   std::string modulgrenze_dateiname {};
 };
@@ -239,18 +240,22 @@ bool operator<(const struct ElementIntervall& left, const struct ElementInterval
   return std::pair { left.anfang, left.ende } < std::pair { right.anfang, right.ende };
 }
 
+float elementLaenge(const StrElement& element) {
+  return glm::length(element.b - element.g);
+}
+
 std::vector<ElementIntervall> segmentiere(std::unordered_set<int> elemente, const Strecke& strecke) {
   using ElementNrUndAnzahl = std::pair<int, size_t>;
 
   // Gibt ein ElementIntervall zurueck, bei dem anfang==0 ist und nur "ende" befuellt ist.
   std::function<ElementIntervall(int, bool)> findeWeitestenNachfolger = [&strecke, &elemente, &findeWeitestenNachfolger](int elementNr, bool norm) -> ElementIntervall {
     if (elementNr < 0 || static_cast<std::size_t>(elementNr) >= strecke.children_StrElement.size()) {
-      return { 0, elementNr, 0, false, {} };
+      return { 0, elementNr, 0, .0f, false, {} };
     }
 
     const auto& strElement = strecke.children_StrElement.at(elementNr);
     if (!strElement) {
-      return { 0, elementNr, 0, false, {} };
+      return { 0, elementNr, 0, .0f, false, {} };
     }
 
     // Ein Element hat entweder Nachfolger im selben Modul oder Nachfolger in einem anderen Modul,
@@ -258,34 +263,36 @@ std::vector<ElementIntervall> segmentiere(std::unordered_set<int> elemente, cons
     const auto& nachfolger = norm ? strElement->children_NachNorm : strElement->children_NachGegen;
     if (nachfolger.empty()) {
       const auto& nachfolgerAnderesModul = norm ? strElement->children_NachNormModul : strElement->children_NachGegenModul;
-      return { 0, elementNr, 0, true, nachfolgerAnderesModul.empty() ? std::string() : nachfolgerAnderesModul.front().Datei.Dateiname };
+      return { 0, elementNr, 0, .0f, true, nachfolgerAnderesModul.empty() ? std::string() : nachfolgerAnderesModul.front().Datei.Dateiname };
     }
 
     int nachfolgerNr = nachfolger.front().Nr;
 
     auto it = elemente.find(nachfolgerNr);
     if (it == std::end(elemente)) {
-      return { 0, elementNr, 0, false, {} };
+      return { 0, elementNr, 0, .0f, false, {} };
     }
 
     if (nachfolgerNr < 0 || static_cast<std::size_t>(nachfolgerNr) >= strecke.children_StrElement.size()) {
-      return { 0, elementNr, 0, false, {} };
+      return { 0, elementNr, 0, .0f, false, {} };
     }
 
     bool nachfolgerNorm = ((strElement->Anschluss >> (norm ? 0 : 8)) & 1) == 0;
     const auto& nachfolgerElement = strecke.children_StrElement.at(nachfolgerNr);
     if (!nachfolgerElement) {
-      return { 0, elementNr, 0, false, {} };
+      return { 0, elementNr, 0, .0f, false, {} };
     }
 
     const auto& nachfolgerVorgaenger = nachfolgerNorm ? nachfolgerElement->children_NachGegen : nachfolgerElement->children_NachNorm;
     if (nachfolgerVorgaenger.size() == 0 || nachfolgerVorgaenger.front().Nr != elementNr) {
-      return { 0, elementNr, 0, false, {} };
+      return { 0, elementNr, 0, .0f, false, {} };
     }
 
     elemente.erase(it);
     const auto result = findeWeitestenNachfolger(nachfolgerNr, nachfolgerNorm);
-    return { result.anfang, result.ende, result.anzahl_elemente + 1, result.streckenende, std::move(result.modulgrenze_dateiname) };
+    return { result.anfang, result.ende,
+      result.anzahl_elemente + 1, result.laenge + elementLaenge(*strElement),
+      result.streckenende, std::move(result.modulgrenze_dateiname) };
   };
 
   std::vector<ElementIntervall> result;
@@ -295,12 +302,26 @@ std::vector<ElementIntervall> segmentiere(std::unordered_set<int> elemente, cons
     int elementNr = *it;
     elemente.erase(it);
 
+    const auto laenge = [&]() {
+      if (elementNr < 0 || static_cast<std::size_t>(elementNr) >= strecke.children_StrElement.size()) {
+        return .0f;
+      }
+
+      const auto& strElement = strecke.children_StrElement.at(elementNr);
+      if (!strElement) {
+        return .0f;
+      }
+
+      return elementLaenge(*strElement);
+    }();
+
     auto weitesterNachfolgerNorm = findeWeitestenNachfolger(elementNr, true);
     auto weitesterNachfolgerGegen = findeWeitestenNachfolger(elementNr, false);
 
     const auto elementNummern = std::minmax(weitesterNachfolgerNorm.ende, weitesterNachfolgerGegen.ende);
     result.emplace_back(ElementIntervall { elementNummern.first, elementNummern.second,
         weitesterNachfolgerNorm.anzahl_elemente + weitesterNachfolgerGegen.anzahl_elemente + 1,
+        weitesterNachfolgerNorm.laenge + weitesterNachfolgerGegen.laenge + laenge,
         weitesterNachfolgerNorm.streckenende || weitesterNachfolgerGegen.streckenende,
         weitesterNachfolgerNorm.modulgrenze_dateiname.empty()
           ? std::move(weitesterNachfolgerGegen.modulgrenze_dateiname)
@@ -448,9 +469,11 @@ int main(int argc, char** argv) {
   for (const auto& intervall : kein_fahrdraht_warnung_segmentiert) {
     if (intervall.anzahl_elemente == 1) {
       assert(intervall.anfang == intervall.ende);
-      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << intervall.anfang << " bestimmt";
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer elektrifiziertes Element " << intervall.anfang
+        << " (" << std::fixed << std::setprecision(0) << intervall.laenge << "m) bestimmt";
     } else {
-      boost::nowide::cerr << "Warnung: Keine Hoehe fuer " << intervall.anzahl_elemente << " elektrifizierte Elemente " << intervall.anfang << "-" << intervall.ende << " bestimmt";
+      boost::nowide::cerr << "Warnung: Keine Hoehe fuer " << intervall.anzahl_elemente << " elektrifizierte Elemente "
+        << intervall.anfang << "-" << intervall.ende << " (" << std::fixed << std::setprecision(0) << intervall.laenge << "m) bestimmt";
     }
 
     if (!intervall.modulgrenze_dateiname.empty()) {
