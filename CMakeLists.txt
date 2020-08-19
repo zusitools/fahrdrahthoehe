@@ -15,6 +15,7 @@ generate_zusi_parser(zusi_parser ${CMAKE_CURRENT_BINARY_DIR}/zusi_parser
     Landschaft::Verknuepfte
     Landschaft::lsb
     Material::TypLs3
+    Material::ls3Typ
     ModulDateiVerknuepfung::Datei
     NachfolgerSelbesModul::Nr
     NachfolgerAnderesModul::Datei

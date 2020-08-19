@@ -62,13 +62,19 @@ bool liesLs3(const std::string& dateiname, const zusixml::ZusiPfad& rel, const g
     return false;
   }
 
-  if (std::any_of(std::begin(ls3->Landschaft->children_SubSet), std::end(ls3->Landschaft->children_SubSet), [](const auto& s) { return s->TypLs3 == 14; })) {
+  const auto& istTypFahrleitung = [](const std::unique_ptr<SubSet>& subset) {
+    // TypLs3 (A.1 etc.) und ls3Typ (A.0) haben nicht die gleichen Werte,
+    // aber für Typ Fahrleitung stimmen sie überein.
+    return subset->TypLs3 == 14 || subset->ls3Typ == 14;
+  };
+
+  if (std::any_of(std::begin(ls3->Landschaft->children_SubSet), std::end(ls3->Landschaft->children_SubSet), istTypFahrleitung)) {
     readLsb(ls3->Landschaft.get(), pfad);
   }
 
   // Fuer jedes Subset mit LS3-Typ "Fahrleitung": iteriere ueber Dreiecke
   for (const auto& subset : ls3->Landschaft->children_SubSet) {
-    if (subset->TypLs3 != 14) {
+    if (!istTypFahrleitung(subset)) {
       continue;
     }
 
