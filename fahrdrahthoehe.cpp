@@ -78,7 +78,7 @@ bool liesLs3(const std::string& dateiname, const zusixml::ZusiPfad& rel, const g
       continue;
     }
 
-    if (subset->children_Vertex.size() == 0) {
+    if (subset->children_Vertex.empty()) {
       continue;
     }
 
@@ -290,7 +290,7 @@ std::vector<ElementIntervall> segmentiere(std::unordered_set<int> elemente, cons
     }
 
     const auto& nachfolgerVorgaenger = nachfolgerNorm ? nachfolgerElement->children_NachGegen : nachfolgerElement->children_NachNorm;
-    if (nachfolgerVorgaenger.size() == 0 || nachfolgerVorgaenger.front().Nr != elementNr) {
+    if (nachfolgerVorgaenger.empty() || nachfolgerVorgaenger.front().Nr != elementNr) {
       return { 0, elementNr, 0, .0f, false, {} };
     }
 
