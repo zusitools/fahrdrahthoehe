@@ -418,6 +418,7 @@ int main(int argc, char** argv) {
   // Lies Landschaftsdatei ein (rekursiv)
   const auto rel = zusixml::ZusiPfad::vonOsPfad(argv[1]);
   glm::mat4 transform(1.0);  // Identitaetsmatrix
+  boost::nowide::cerr << "Lies Modul-Landschaft: " << st3->Strecke->Datei.Dateiname << '\n';
   liesLs3(st3->Strecke->Datei.Dateiname, rel, transform);
 
   // Lies Landschaft von Nachbarmodulen ein
@@ -435,6 +436,7 @@ int main(int argc, char** argv) {
     }
     auto utm_transform = glm::vec3((nachbarmodul_st3->Strecke->UTM->UTM_WE - st3->Strecke->UTM->UTM_WE) * 1000, (nachbarmodul_st3->Strecke->UTM->UTM_NS - st3->Strecke->UTM->UTM_NS) * 1000, 0);
     transform = glm::translate(glm::mat4(1.0), utm_transform);
+    boost::nowide::cerr << "Lies Nachbarmodul-Landschaft: " << nachbarmodul_st3->Strecke->Datei.Dateiname << '\n';
     liesLs3(nachbarmodul_st3->Strecke->Datei.Dateiname, nachbarmodul_pfad, transform);
   }
 
